@@ -1,6 +1,7 @@
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
 import ollama
+from pathlib import Path
 
 client = QdrantClient(path="qdrant_data") #inicializa el cliente de Qdrant
 
@@ -17,6 +18,7 @@ client.create_collection(
     )
 )
 
+#chunkeo de documento markdown en secciones
 def chunk_markdown(text):
     lines = text.splitlines()
 
@@ -52,44 +54,52 @@ def chunk_markdown(text):
 
     return chunks
 
-#Leer nuestro documento
-with open("knowledge/runbooks/redis.md", "r", encoding="utf-8") as file:
-    text = file.read()
+#Leer los documentos
+documents = Path("knowledge/runbooks").rglob("*.md")
 
-chunks = chunk_markdown(text) #chunking del documento en secciones
+point_id = 0
 
-for chunk_id, chunk in enumerate(chunks):
+for document in documents:
 
-    print(f"Procesando chunk {chunk_id}...")
+    with open(document, "r", encoding="utf-8") as f:
+        text = f.read()
 
+    chunks = chunk_markdown(text) #chunking del documento en secciones
 
-    #Generar el embedding
-    response = ollama.embed(
-        model="qwen3-embedding:0.6b",
-        input=chunk
-    )
+    for chunk_id, chunk in enumerate(chunks):
+    
+        #Generar el embedding
+        response = ollama.embed(
+            model="qwen3-embedding:0.6b",
+            input=chunk
+        )
 
-    embedding = response["embeddings"][0]
+        embedding = response["embeddings"][0]
 
-    #Crear un punto para Qdrant, un punto es un vector de embeddings con un ID y un payload (información adicional)
-    point = PointStruct(    
-        id = chunk_id,
-        vector = embedding,
+        #Metadata del chunk
         payload = {
-            "source": "redis.md",
-            "type": "runbook",
+            "source": document.name,
+            "path": str(document),
+            "type": document.parent.name,
             "chunk_id": chunk_id,
             "content": chunk
         }
-    )
 
-    #Guardar el punto en Qdrant
-    client.upsert(
-        collection_name=collection_name,
-        points=[point]
-    )
+        #Guardar el punto en Qdrant
+        client.upsert(
+            collection_name=collection_name,
+            points=[
+                PointStruct(
+                    id=point_id,
+                    vector=embedding,
+                    payload=payload
+                )
+            ]
+        )
 
-    print(f"Chunk {chunk_id} insertado con contenido {chunk}")
+        print(f"Chunk {chunk_id} insertado con contenido {chunk}")
+
+        point_id += 1
 
 print(f"\nTodos los chunks insertados en la colección '{collection_name}'")
 

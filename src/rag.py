@@ -16,6 +16,7 @@ def retrieve(query, top_k=3):
 
     query_embedding = response["embeddings"][0]
 
+    #hace un search en Qdrant con el embedding de la query y devuelve los 3 chunks más relevantes
     results = client.query_points(
         collection_name=collection_name,
         query=query_embedding,
@@ -57,34 +58,43 @@ def generate_answer(query, results):
     return response["message"]["content"]
 
 
+def ask(query):
+
+    print("="*70)
+    print(f"PREGUNTA: {query}\n")
+
+    results = retrieve(query)
+
+    #Muestra de los 3 chunks más relevantes obtenidos para la query pasada
+    for i, result in enumerate(results, start=1):
+        print(f"Resultado {i}:")
+        print(f"Score: {result.score}")
+        print(f"Source: {result.payload['source']}")
+        print(f"Path: {result.payload['path']}")
+        print(f"Chunk id: {result.payload['chunk_id']}")
+        print("\nContenido:")
+        print(result.payload['content'])
+        print()
+
+    #se le pasa al LLM para que genere una respuesta adecuada al usuario, usando el contexto y los 3 chunks más relevantes
+    answer = generate_answer(query, results)
+
+    print("\n" + "-" * 70)
+    print("RESPUESTA:")
+    print(answer)
+    print()
+
 
 if __name__ == "__main__":
 
-    query = "¿Qué hago si Redis está usando demasiada memoria?"
+    queries = [
+        "¿Qué hago si Redis está usando demasiada memoria?",
+        "¿Kafka tiene lag qué puedo hacer?",
+        "¿Qué hago si las queries de Postgresql están lentas?",
+        "¿Cómo configuro Redis Cluster?",
+    ] 
 
-    results = retrieve(query)
-
-    answer = generate_answer(query, results)
-
-    print(f"Pregunta: {query}\n")
-    print(f"Respuesta: {answer}\n")
-
-    query = "¿En qué puerto funciona Redis?"
-
-    results = retrieve(query)
-    
-    answer = generate_answer(query, results)
-
-    print(f"Pregunta: {query}\n")
-    print(f"Respuesta: {answer}\n")
-
-    query = "¿Cómo configuro Redis Cluster?"
-
-    results = retrieve(query)
-        
-    answer = generate_answer(query, results)
-
-    print(f"Pregunta: {query}\n")
-    print(f"Respuesta: {answer}\n")
+    for query in queries:
+        ask(query)
 
     client.close()  
