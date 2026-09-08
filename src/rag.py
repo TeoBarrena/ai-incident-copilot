@@ -20,7 +20,8 @@ def retrieve(query, top_k=3):
     results = client.query_points(
         collection_name=collection_name,
         query=query_embedding,
-        limit=top_k
+        limit=top_k,
+        score_threshold=0.54 #umbral de aceptación de resultados, si el score es menor a 0.54 no se considera relevante
     ).points
 
     return results
@@ -64,6 +65,16 @@ def ask(query):
     print(f"PREGUNTA: {query}\n")
 
     results = retrieve(query)
+
+    if not results:
+        print("No se encontraron chunks relevantes.")
+
+        print("\n" + "-" * 70)
+        print("RESPUESTA:")
+        print("No hay suficiente información disponible para responder esta pregunta.")
+        print()
+
+        return
 
     #Muestra de los 3 chunks más relevantes obtenidos para la query pasada
     for i, result in enumerate(results, start=1):
